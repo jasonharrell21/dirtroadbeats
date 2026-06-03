@@ -28,7 +28,7 @@ const stripePromise = loadStripe(
   import.meta.env.VITE_STRIPE_PUBLIC_KEY || "pk_test_REPLACE_WITH_YOUR_KEY"
 );
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = "";
 
 // ── Stripe appearance matching Dirt Road Beats brand ──────────────────────────────
 const STRIPE_APPEARANCE = {

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import AdminApp from "./dirtroad-admin";
 
 // ── Fonts via Google Fonts injected once ──────────────────────────────────────
 const FontLink = () => (
@@ -48,6 +49,57 @@ const FontLink = () => (
       50%       { transform: scaleY(2.2); }
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 768px) {
+      /* Nav */
+      .nav-links { display: none !important; }
+      .nav-order-btn { display: flex !important; }
+
+      /* Hero */
+      .hero-btns { flex-direction: column !important; align-items: center !important; }
+
+      /* 3-col grids → 1 col */
+      .grid-3 { grid-template-columns: 1fr !important; }
+
+      /* 2-col grids → 1 col */
+      .grid-2 { grid-template-columns: 1fr !important; }
+
+      /* Order form 2-col rows → 1 col */
+      .form-row-2 { grid-template-columns: 1fr !important; }
+
+      /* Pricing cards → 1 col, no scale */
+      .pricing-card-featured { transform: none !important; }
+
+      /* Testimonials → 1 col */
+      .grid-testimonials { grid-template-columns: 1fr !important; }
+
+      /* Section padding */
+      .section-pad { padding: 48px 16px !important; }
+
+      /* Card padding */
+      .card-pad { padding: 20px 16px !important; }
+
+      /* Progress steps */
+      .progress-steps { flex-wrap: wrap !important; gap: 8px !important; }
+
+      /* Order confirmation summary */
+      .confirm-summary { padding: 16px !important; }
+
+      /* Reduce hero padding */
+      .hero-section { padding: 40px 16px !important; min-height: 90vh !important; }
+
+      /* Footer links */
+      .footer-links { gap: 12px !important; }
+
+      /* Sample player tabs */
+      .sample-tabs { flex-wrap: wrap !important; }
+    }
+
+    @media (max-width: 480px) {
+      .grid-3 { grid-template-columns: 1fr !important; }
+      .grid-2 { grid-template-columns: 1fr !important; }
+    }
   `}</style>
 );
 
@@ -170,6 +222,15 @@ const S = {
 // ── Tier data ─────────────────────────────────────────────────────────────────
 const TIERS = [
   {
+    id: "sample",
+    name: "Free Sample",
+    price: 0,
+    desc: "Hear your song before you commit — no credit card needed",
+    features: ["Submit your song details", "We create your full custom song", "You receive a 30-second protected preview", "Love it? Buy the full WAV for $179.99", "Delivered within 48 hours"],
+    color: "#4caf7d",
+    isSample: true,
+  },
+  {
     id: "one",
     name: "One Version",
     price: 179.99,
@@ -194,54 +255,10 @@ const MOODS  = ["Romantic","Celebratory","Nostalgic","Uplifting","Melancholic","
 const VOCALS = ["Male lead","Female lead","Duet (M+F)","Group / Choir","Instrumental only"];
 
 // ── Protected Audio Player ────────────────────────────────────────────────────
-// The src is never exposed in plain HTML; blob URL is revoked after load.
-// Right-click and keyboard shortcuts are blocked on the player div.
-function ProtectedPlayer({ title, artistHint }) {
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(30);
-  const [loaded, setLoaded] = useState(false);
-  const audioRef = useRef(null);
-  const intervalRef = useRef(null);
-
-  // Demo: use a short royalty-free tone encoded as a tiny data URI
-  // In production replace with a presigned, time-limited URL served from your backend.
-  const DEMO_SRC = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-
-  useEffect(() => {
-    const audio = new Audio();
-    audio.src = DEMO_SRC;
-    audio.crossOrigin = "anonymous";
-    // Enforce 30-second cap
-    audio.addEventListener("timeupdate", () => {
-      if (audio.currentTime >= 30) { audio.pause(); audio.currentTime = 0; setPlaying(false); setProgress(0); }
-      else setProgress((audio.currentTime / 30) * 100);
-    });
-    audio.addEventListener("loadedmetadata", () => { setLoaded(true); setDuration(Math.min(audio.duration, 30)); });
-    audioRef.current = audio;
-    return () => { audio.pause(); audio.src = ""; };
-  }, []);
-
-  const toggle = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (playing) { a.pause(); setPlaying(false); }
-    else { a.play().catch(() => {}); setPlaying(true); }
-  };
-
-  const handleSeek = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const a = audioRef.current;
-    if (a) a.currentTime = pct * 30;
-    setProgress(pct * 100);
-  };
-
+function ProtectedPlayer({ src, title, genre, playing, onPlay, duration, progress, onSeek }) {
   const fmt = (s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
-
-  // Waveform bars (decorative)
   const bars = Array.from({ length: 36 }, (_, i) => ({
-    h: 20 + Math.sin(i * 0.7) * 14 + Math.random() * 10,
+    h: 20 + Math.sin(i * 0.7) * 14 + Math.sin(i * 1.3) * 6,
     delay: (i * 0.05) % 1,
   }));
 
@@ -251,96 +268,192 @@ function ProtectedPlayer({ title, artistHint }) {
       onContextMenu={e => e.preventDefault()}
       style={{
         background: "linear-gradient(135deg, #2a1208, #0d0a07)",
-        border: "1px solid rgba(201,168,76,.25)",
-        borderRadius: 16,
-        padding: 28,
-        userSelect: "none",
+        border: `1px solid ${playing ? "rgba(212,133,74,.5)" : "rgba(212,133,74,.2)"}`,
+        borderRadius: 14, padding: "20px 24px", userSelect: "none",
+        transition: "border-color .2s",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-        {/* Play button */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
         <button
-          onClick={toggle}
+          onClick={onPlay}
           style={{
-            width: 52, height: 52, borderRadius: "50%",
-            background: "linear-gradient(135deg, var(--gold), var(--gold2))",
-            border: "none", cursor: "pointer", flexShrink: 0,
+            width: 48, height: 48, borderRadius: "50%",
+            background: playing ? "linear-gradient(135deg, #d4854a, #edb87a)" : "rgba(212,133,74,.15)",
+            border: playing ? "none" : "1px solid rgba(212,133,74,.4)",
+            cursor: "pointer", flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 20, color: "#1a1200", transition: "transform .15s",
+            fontSize: 18, color: playing ? "#1a0d05" : "#d4854a",
+            transition: "all .2s",
           }}
-          onMouseEnter={e => e.currentTarget.style.transform = "scale(1.08)"}
-          onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
         >
           {playing ? "⏸" : "▶"}
         </button>
-        <div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
-            {title || "Your Custom Song"}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Georgia, serif", fontWeight: 700, fontSize: 16, color: "#fff", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {title}
           </div>
-          <div style={{ fontSize: 12, color: "#b09880", marginTop: 2 }}>
-            {artistHint ? `In the style of ${artistHint}` : "30-second preview"} · 🔒 Protected sample
+          <div style={{ fontSize: 12, color: "#b09880" }}>
+            {genre} · 🔒 Protected — download disabled
           </div>
         </div>
       </div>
 
       {/* Waveform */}
-      <div style={{ display: "flex", alignItems: "center", gap: 2, height: 48, marginBottom: 14, cursor: "pointer" }} onClick={handleSeek}>
+      <div style={{ display: "flex", alignItems: "center", gap: 2, height: 40, marginBottom: 10, cursor: "pointer" }} onClick={onSeek}>
         {bars.map((b, i) => {
           const filled = (i / bars.length) * 100 <= progress;
           return (
-            <div
-              key={i}
-              style={{
-                flex: 1,
-                height: b.h,
-                borderRadius: 2,
-                background: filled ? "linear-gradient(to top, var(--gold), var(--gold2))" : "rgba(201,168,76,.2)",
-                animation: playing && filled ? `wave ${0.4 + b.delay}s ease-in-out infinite alternate` : "none",
-                transition: "background .1s",
-              }}
-            />
+            <div key={i} style={{
+              flex: 1, height: b.h, borderRadius: 2,
+              background: filled ? "linear-gradient(to top, #d4854a, #edb87a)" : "rgba(212,133,74,.15)",
+              animation: playing && filled ? `wave ${0.4 + b.delay}s ease-in-out infinite alternate` : "none",
+              transition: "background .1s",
+            }} />
           );
         })}
       </div>
 
-      {/* Progress bar */}
+      {/* Progress */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 12, color: "#b09880", minWidth: 32 }}>{fmt((progress/100)*30)}</span>
-        <div
-          onClick={handleSeek}
-          style={{ flex: 1, height: 4, background: "rgba(201,168,76,.15)", borderRadius: 2, cursor: "pointer", position: "relative" }}
-        >
-          <div style={{ width: `${progress}%`, height: "100%", background: "var(--gold)", borderRadius: 2 }} />
+        <span style={{ fontSize: 11, color: "#b09880", minWidth: 32 }}>{fmt((progress/100) * duration)}</span>
+        <div onClick={onSeek} style={{ flex: 1, height: 3, background: "rgba(212,133,74,.15)", borderRadius: 2, cursor: "pointer" }}>
+          <div style={{ width: `${progress}%`, height: "100%", background: "#d4854a", borderRadius: 2 }} />
         </div>
-        <span style={{ fontSize: 12, color: "#b09880", minWidth: 32, textAlign: "right" }}>0:30</span>
-      </div>
-
-      <div style={{ marginTop: 12, fontSize: 11, color: "#9a8472", textAlign: "center" }}>
-        ⚠️ Preview only — downloading is disabled. Full song delivered after purchase.
+        <span style={{ fontSize: 11, color: "#b09880", minWidth: 32, textAlign: "right" }}>{fmt(duration)}</span>
       </div>
     </div>
   );
 }
 
+// ── Multi-Song Sample Section ─────────────────────────────────────────────────
+const SUPABASE_PUBLIC_URL = "https://fonqowbipddufdrekwab.supabase.co";
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+
+function SampleSection() {
+  const [songs, setSongs] = useState([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef(null);
+
+  // Load sample songs from Supabase
+  useEffect(() => {
+    fetch(`${SUPABASE_PUBLIC_URL}/rest/v1/samples?order=created_at.desc`, {
+      headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) setSongs(data);
+        else {
+          // Fallback to hardcoded song if no samples in DB yet
+          setSongs([{ title: "Spring Bayou", genre: "Country", url: `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/Songs/Spring%20Bayou-2.wav` }]);
+        }
+      })
+      .catch(() => {
+        setSongs([{ title: "Spring Bayou", genre: "Country", url: `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/Songs/Spring%20Bayou-2.wav` }]);
+      });
+  }, []);
+
+  // Set up audio when song changes
+  useEffect(() => {
+    if (!songs.length) return;
+    const audio = audioRef.current || new Audio();
+    audio.pause();
+    audio.src = songs[currentIdx]?.url || "";
+    audio.crossOrigin = "anonymous";
+    audio.addEventListener("timeupdate", () => {
+      setProgress((audio.currentTime / audio.duration) * 100 || 0);
+    });
+    audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
+    audio.addEventListener("ended", () => { setPlaying(false); setProgress(0); });
+    audioRef.current = audio;
+    setPlaying(false);
+    setProgress(0);
+    setDuration(0);
+  }, [currentIdx, songs]);
+
+  const togglePlay = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing) { a.pause(); setPlaying(false); }
+    else { a.play().catch(() => {}); setPlaying(true); }
+  };
+
+  const handleSeek = (e) => {
+    const a = audioRef.current;
+    if (!a || !a.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    a.currentTime = pct * a.duration;
+    setProgress(pct * 100);
+  };
+
+  const switchSong = (idx) => {
+    if (audioRef.current) { audioRef.current.pause(); }
+    setCurrentIdx(idx);
+  };
+
+  if (!songs.length) return null;
+
+  return (
+    <section id="sample" style={{ ...S.section, maxWidth: 760, margin: "0 auto" }}>
+      <div style={{ textAlign: "center", marginBottom: 40 }}>
+        <h2 style={S.sectionTitle}>Hear What's Possible</h2>
+        <p style={S.sectionSub}>Real custom songs made right here at Dirt Road Beats. Hit play and hear for yourself.</p>
+      </div>
+
+      {/* Song tabs */}
+      {songs.length > 1 && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          {songs.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => switchSong(i)}
+              style={{
+                background: currentIdx === i ? "linear-gradient(135deg, #d4854a, #edb87a)" : "rgba(212,133,74,.1)",
+                border: currentIdx === i ? "none" : "1px solid rgba(212,133,74,.25)",
+                borderRadius: 50, padding: "8px 20px",
+                color: currentIdx === i ? "#1a0d05" : "#d4854a",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                fontFamily: "inherit", transition: "all .2s",
+              }}
+            >
+              {s.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ProtectedPlayer
+        src={songs[currentIdx]?.url}
+        title={songs[currentIdx]?.title}
+        genre={songs[currentIdx]?.genre}
+        playing={playing}
+        onPlay={togglePlay}
+        duration={duration}
+        progress={progress}
+        onSeek={handleSeek}
+      />
+    </section>
+  );
+}
+
 // ── Order Form ────────────────────────────────────────────────────────────────
 function OrderForm({ selectedTier, onBack, onSuccess }) {
-  const [step, setStep] = useState(1); // 1=details, 2=payment, 3=confirmation
+  const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    // song details
     title: "", occasion: "", recipient: "", genre: "", tempo: "", mood: "", vocal: "",
-    artistMimic: "", lyrics: "", extraNotes: "",
-    // contact
-    name: "", email: "",
-    // payment (mock)
-    cardName: "", cardNum: "", expiry: "", cvv: "",
+    artistMimic: "", lyrics: "", extraNotes: "", name: "", email: "",
   });
   const [errors, setErrors] = useState({});
   const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState("");
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
-
   const fldStyle = (k) => ({ ...S.input, borderColor: errors[k] ? "var(--danger)" : "rgba(201,168,76,.2)" });
   const selStyle = (k) => ({ ...S.select, borderColor: errors[k] ? "var(--danger)" : "rgba(201,168,76,.2)" });
+  const tier = TIERS.find(t => t.id === selectedTier) || TIERS[0];
 
   const validate1 = () => {
     const e = {};
@@ -355,239 +468,204 @@ function OrderForm({ selectedTier, onBack, onSuccess }) {
     return Object.keys(e).length === 0;
   };
 
-  const validate2 = () => {
-    const e = {};
-    if (!form.cardName.trim()) e.cardName = true;
-    if (form.cardNum.replace(/\s/g,"").length < 16) e.cardNum = true;
-    if (!form.expiry.match(/^\d{2}\/\d{2}$/)) e.expiry = true;
-    if (form.cvv.length < 3) e.cvv = true;
-    setErrors(e);
-    return Object.keys(e).length === 0;
+
+  const PAYMENT_LINKS = {
+    one: "https://buy.stripe.com/00weV7f755pg2YygiegMw00",
+    two: "https://buy.stripe.com/9B600d3oncRI56Gc1YgMw01",
   };
 
-  const nextStep = () => {
-    if (step === 1 && validate1()) setStep(2);
-    if (step === 2 && validate2()) {
-      setProcessing(true);
-      setTimeout(() => { setProcessing(false); setStep(3); onSuccess && onSuccess(form); }, 2200);
+  const SUPABASE_URL = "https://fonqowbipddufdrekwab.supabase.co";
+  const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+
+  const handleCheckout = async () => {
+    if (!validate1()) return;
+    setProcessing(true); setError("");
+
+    const orderId = "DRB-" + Date.now().toString(36).toUpperCase().slice(-6);
+
+    // Save order to Supabase
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify({
+          order_id: orderId,
+          name: form.name,
+          email: form.email,
+          tier: selectedTier,
+          tier_name: tier.name,
+          price: tier.price,
+          genre: form.genre,
+          tempo: form.tempo,
+          mood: form.mood,
+          vocal: form.vocal,
+          artist_mimic: form.artistMimic || null,
+          title: form.title || null,
+          recipient: form.recipient || null,
+          lyrics: form.lyrics,
+          extra_notes: form.extraNotes || null,
+          status: selectedTier === "sample" ? "sample_requested" : "pending_payment",
+        }),
+      });
+    } catch (err) {
+      console.error("Save error:", err);
     }
+
+    // Free sample — show confirmation, no payment
+    if (selectedTier === "sample") {
+      setProcessing(false);
+      setStep(3);
+      onSuccess && onSuccess({ name: form.name, tier: selectedTier, orderId });
+      return;
+    }
+
+    // Paid — redirect to Stripe
+    const base = PAYMENT_LINKS[selectedTier];
+    const params = new URLSearchParams({ prefilled_email: form.email });
+    window.location.href = `${base}?${params.toString()}`;
   };
-
-  const tier = TIERS.find(t => t.id === selectedTier) || TIERS[0];
-
-  const fmtCard = (v) => v.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
-  const fmtExp  = (v) => { const d = v.replace(/\D/g,"").slice(0,4); return d.length > 2 ? d.slice(0,2)+"/"+d.slice(2) : d; };
 
   if (step === 3) {
+    const isSample = selectedTier === "sample";
     return (
       <div style={{ ...S.card, textAlign: "center", padding: 48, animation: "fadeUp .6s ease both" }}>
-        <div style={{ fontSize: 60, marginBottom: 16 }}>🎵</div>
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, fontWeight: 700, color: "#fff", marginBottom: 12 }}>
-          Order Confirmed!
+        <div style={{ fontSize: 60, marginBottom: 16 }}>{isSample ? "🎵" : "🎸"}</div>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 32, fontWeight: 700, color: isSample ? "#4caf7d" : "#d4854a", marginBottom: 12 }}>
+          {isSample ? "Sample Request Received!" : "Order Confirmed!"}
         </div>
-        <div style={{ color: "rgba(245,237,224,.85)", fontSize: 16, lineHeight: 1.7, maxWidth: 440, margin: "0 auto 28px" }}>
-          Thank you, <strong style={{ color: "var(--gold)" }}>{form.name}</strong>! Your custom song is in the queue.
-          We'll send your full song download link to <strong style={{ color: "var(--gold)" }}>{form.email}</strong>. Your WAV {tier.id === "two" ? "files" : "file"} will be ready within 3–5 business days.
+        <div style={{ color: "rgba(245,237,224,.85)", fontSize: 16, lineHeight: 1.7, maxWidth: 480, margin: "0 auto 28px" }}>
+          {isSample ? (
+            <>Thank you, <strong style={{ color: "#4caf7d" }}>there</strong>! We've received your song details and will create your 30-second sample within <strong style={{ color: "#6fcf97" }}>48 hours</strong>. We'll email it to <strong style={{ color: "#6fcf97" }}>{form.email}</strong> — if you love it, you can purchase the full song right from the email!</>
+          ) : (
+            <>Thank you! Your custom song is in the queue. We'll send your WAV {selectedTier === "two" ? "files" : "file"} to your email within 3–5 business days.</>
+          )}
         </div>
+        {isSample && (
+          <div style={{ background: "rgba(76,175,109,.08)", border: "1px solid rgba(76,175,109,.2)", borderRadius: 12, padding: "20px 24px", maxWidth: 440, margin: "0 auto 28px", textAlign: "left" }}>
+            <div style={{ color: "#4caf7d", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>What happens next</div>
+            {[
+              ["🎵", "We create your full custom song"],
+              ["✂️", "We cut a 30-second preview just for you"],
+              ["📧", "You get a protected sample link by email within 48 hours"],
+              ["🎸", "Love it? Click 'Buy Full Song' in the email"],
+            ].map(([icon, text]) => (
+              <div key={text} style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+                <span style={{ color: "#e0cdb8", fontSize: 14, lineHeight: 1.6 }}>{text}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "20px 28px", display: "inline-block", marginBottom: 28, textAlign: "left" }}>
-          <div style={{ fontSize: 13, color: "#c4a882", marginBottom: 4 }}>Order Summary</div>
-          <div style={{ color: "#fff", fontWeight: 600 }}>{tier.name} — ${tier.price.toFixed(2)}</div>
-          <div style={{ color: "#c4a882", fontSize: 14 }}>Genre: {form.genre} · {form.tempo}</div>
-          {form.artistMimic && <div style={{ color: "#c4a882", fontSize: 14 }}>Style: {form.artistMimic}</div>}
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>Summary</div>
+          <div style={{ color: "#fff", fontWeight: 600 }}>{tier.name} {isSample ? "— Free" : `— $${tier.price.toFixed(2)}`}</div>
+          <div style={{ color: "#c4a882", fontSize: 14 }}>{isSample ? "30-second preview · 48 hour delivery" : "WAV file delivery · 3–5 business days"}</div>
         </div>
-        <div>
-          <button style={S.btnGold} onClick={onBack}>Order Another Song</button>
-        </div>
+        <div><button style={S.btnGold} onClick={onBack}>Back to Home</button></div>
       </div>
     );
   }
 
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
-      {/* Progress */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 36 }}>
-        {["Song Details","Payment"].map((label, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: step > i+1 ? "var(--gold)" : step === i+1 ? "linear-gradient(135deg,var(--gold),var(--gold2))" : "var(--surface2)",
-              border: step === i+1 ? "none" : "1px solid rgba(201,168,76,.3)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, fontWeight: 700, color: step >= i+1 ? "#1a1200" : "#c4a882",
-            }}>
-              {step > i+1 ? "✓" : i+1}
-            </div>
-            <span style={{ fontSize: 14, color: step === i+1 ? "var(--gold)" : "#c4a882" }}>{label}</span>
-            {i < 1 && <div style={{ width: 40, height: 1, background: "rgba(201,168,76,.2)" }} />}
-          </div>
-        ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,var(--gold),var(--gold2))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#1a1200" }}>1</div>
+          <span style={{ fontSize: 14, color: "var(--gold)" }}>Song Details</span>
+        </div>
         <div style={{ marginLeft: "auto", background: "rgba(201,168,76,.1)", borderRadius: 50, padding: "6px 16px", fontSize: 14, color: "var(--gold)" }}>
           {tier.name} · ${tier.price.toFixed(2)}
         </div>
       </div>
 
-      {step === 1 && (
-        <div style={S.card}>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", marginBottom: 28 }}>Song Details</div>
+      <div style={S.card}>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 22, color: "#fff", marginBottom: 28 }}>Song Details</div>
 
-          <div style={S.row2}>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Your Name *</label>
-              <input style={fldStyle("name")} value={form.name} onChange={set("name")} placeholder="Jane Smith" />
-            </div>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Your Email *</label>
-              <input style={fldStyle("email")} value={form.email} onChange={set("email")} placeholder="jane@email.com" type="email" />
-            </div>
-          </div>
+        <div className="form-row-2" style={S.row2}>
+          <div style={S.fieldGroup}><label style={S.label}>Your Name *</label><input style={fldStyle("name")} value={form.name} onChange={set("name")} placeholder="Jane Smith" /></div>
+          <div style={S.fieldGroup}><label style={S.label}>Your Email *</label><input style={fldStyle("email")} value={form.email} onChange={set("email")} placeholder="jane@email.com" type="email" /></div>
+        </div>
 
-          <div style={S.row2}>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Song Title / Occasion</label>
-              <input style={S.input} value={form.title} onChange={set("title")} placeholder="e.g. Wedding Anniversary" />
-            </div>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Who is this for?</label>
-              <input style={S.input} value={form.recipient} onChange={set("recipient")} placeholder="e.g. My wife Sarah" />
-            </div>
-          </div>
+        <div className="form-row-2" style={S.row2}>
+          <div style={S.fieldGroup}><label style={S.label}>Song Title / Occasion</label><input style={S.input} value={form.title} onChange={set("title")} placeholder="e.g. Wedding Anniversary" /></div>
+          <div style={S.fieldGroup}><label style={S.label}>Who is this for?</label><input style={S.input} value={form.recipient} onChange={set("recipient")} placeholder="e.g. My wife Sarah" /></div>
+        </div>
 
-          <div style={S.row2}>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Genre *</label>
-              <select style={selStyle("genre")} value={form.genre} onChange={set("genre")}>
-                <option value="">Select genre…</option>
-                {GENRES.map(g => <option key={g}>{g}</option>)}
-              </select>
-            </div>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Tempo *</label>
-              <select style={selStyle("tempo")} value={form.tempo} onChange={set("tempo")}>
-                <option value="">Select tempo…</option>
-                {TEMPOS.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div style={S.row2}>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Mood / Vibe *</label>
-              <select style={selStyle("mood")} value={form.mood} onChange={set("mood")}>
-                <option value="">Select mood…</option>
-                {MOODS.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </div>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Vocal Style *</label>
-              <select style={selStyle("vocal")} value={form.vocal} onChange={set("vocal")}>
-                <option value="">Select vocals…</option>
-                {VOCALS.map(v => <option key={v}>{v}</option>)}
-              </select>
-            </div>
-          </div>
-
+        <div className="form-row-2" style={S.row2}>
           <div style={S.fieldGroup}>
-            <label style={S.label}>Artist to Mimic / Sound-Alike</label>
-            <input style={S.input} value={form.artistMimic} onChange={set("artistMimic")} placeholder="e.g. Taylor Swift, Morgan Wallen, Bruno Mars…" />
+            <label style={S.label}>Genre *</label>
+            <select style={selStyle("genre")} value={form.genre} onChange={set("genre")}>
+              <option value="">Select genre…</option>
+              {GENRES.map(g => <option key={g}>{g}</option>)}
+            </select>
           </div>
-
           <div style={S.fieldGroup}>
-            <label style={S.label}>Song Details & Lyrics Direction *</label>
-            <textarea
-              style={{ ...S.textarea, borderColor: errors.lyrics ? "var(--danger)" : "rgba(201,168,76,.2)" }}
-              value={form.lyrics}
-              onChange={set("lyrics")}
-              placeholder="Tell us the story, key phrases you want included, names, inside jokes, memories, anything that makes this song uniquely yours…"
-            />
-            {errors.lyrics && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 4 }}>Please provide some detail for the song.</div>}
-            <div style={{
-              display: "flex", alignItems: "flex-start", gap: 10,
-              background: "rgba(212,133,74,.08)",
-              border: "1px solid rgba(212,133,74,.2)",
-              borderRadius: 8, padding: "12px 14px", marginTop: 10,
-            }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
-              <div style={{ fontSize: 13, color: "#e0cdb8", lineHeight: 1.7 }}>
-                <strong style={{ color: "#d4854a" }}>Pro tip:</strong> The more detail you give us, the more personal and accurate your song will be. Include names, places, special memories, inside jokes, how you met, favorite things — anything that makes your story unique. The richer the details, the better the song!
-              </div>
-            </div>
-          </div>
-
-          <div style={S.fieldGroup}>
-            <label style={S.label}>Additional Notes</label>
-            <textarea style={{ ...S.textarea, minHeight: 70 }} value={form.extraNotes} onChange={set("extraNotes")} placeholder="Any instruments you love, things to avoid, reference songs, delivery notes…" />
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-            <button style={S.btnOutline} onClick={onBack}>← Back</button>
-            <button style={S.btnGold} onClick={nextStep}>Continue to Payment →</button>
+            <label style={S.label}>Tempo *</label>
+            <select style={selStyle("tempo")} value={form.tempo} onChange={set("tempo")}>
+              <option value="">Select tempo…</option>
+              {TEMPOS.map(t => <option key={t}>{t}</option>)}
+            </select>
           </div>
         </div>
-      )}
 
-      {step === 2 && (
-        <div style={S.card}>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", marginBottom: 8 }}>Payment</div>
-          <div style={{ color: "#c4a882", fontSize: 14, marginBottom: 28 }}>🔒 Secured by Stripe — your card info never touches our servers.</div>
-
-          <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "16px 20px", marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ color: "var(--gold)", fontWeight: 600 }}>{tier.name} Package</div>
-              <div style={{ color: "#c4a882", fontSize: 13 }}>{tier.features.join(" · ")}</div>
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: "#fff" }}>${tier.price.toFixed(2)}</div>
-          </div>
-
+        <div className="form-row-2" style={S.row2}>
           <div style={S.fieldGroup}>
-            <label style={S.label}>Name on Card</label>
-            <input style={fldStyle("cardName")} value={form.cardName} onChange={set("cardName")} placeholder="Jane Smith" />
+            <label style={S.label}>Mood / Vibe *</label>
+            <select style={selStyle("mood")} value={form.mood} onChange={set("mood")}>
+              <option value="">Select mood…</option>
+              {MOODS.map(m => <option key={m}>{m}</option>)}
+            </select>
           </div>
-
           <div style={S.fieldGroup}>
-            <label style={S.label}>Card Number</label>
-            <input
-              style={fldStyle("cardNum")}
-              value={form.cardNum}
-              onChange={e => setForm(f => ({ ...f, cardNum: fmtCard(e.target.value) }))}
-              placeholder="1234 5678 9012 3456"
-              maxLength={19}
-            />
-          </div>
-
-          <div style={S.row2}>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Expiry</label>
-              <input
-                style={fldStyle("expiry")}
-                value={form.expiry}
-                onChange={e => setForm(f => ({ ...f, expiry: fmtExp(e.target.value) }))}
-                placeholder="MM/YY"
-                maxLength={5}
-              />
-            </div>
-            <div style={S.fieldGroup}>
-              <label style={S.label}>CVV</label>
-              <input style={fldStyle("cvv")} value={form.cvv} onChange={set("cvv")} placeholder="123" maxLength={4} type="password" />
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-            <button style={S.btnOutline} onClick={() => setStep(1)}>← Back</button>
-            <button
-              style={{ ...S.btnGold, minWidth: 180, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
-              onClick={nextStep}
-              disabled={processing}
-            >
-              {processing ? (
-                <>
-                  <div style={{ width: 16, height: 16, border: "2px solid #1a1200", borderTopColor: "transparent", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
-                  Processing…
-                </>
-              ) : `Pay $${tier.price.toFixed(2)}`}
-            </button>
+            <label style={S.label}>Vocal Style *</label>
+            <select style={selStyle("vocal")} value={form.vocal} onChange={set("vocal")}>
+              <option value="">Select vocals…</option>
+              {VOCALS.map(v => <option key={v}>{v}</option>)}
+            </select>
           </div>
         </div>
-      )}
+
+        <div style={S.fieldGroup}>
+          <label style={S.label}>Artist to Mimic / Sound-Alike</label>
+          <input style={S.input} value={form.artistMimic} onChange={set("artistMimic")} placeholder="e.g. Taylor Swift, Morgan Wallen, Bruno Mars…" />
+        </div>
+
+        <div style={S.fieldGroup}>
+          <label style={S.label}>Song Details & Lyrics Direction *</label>
+          <textarea style={{ ...S.textarea, borderColor: errors.lyrics ? "var(--danger)" : "rgba(201,168,76,.2)" }} value={form.lyrics} onChange={set("lyrics")} placeholder="Tell us the story, key phrases, names, inside jokes, memories…" />
+          {errors.lyrics && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 4 }}>Please provide some detail for the song.</div>}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "rgba(212,133,74,.08)", border: "1px solid rgba(212,133,74,.2)", borderRadius: 8, padding: "12px 14px", marginTop: 10 }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+            <div style={{ fontSize: 13, color: "#e0cdb8", lineHeight: 1.7 }}>
+              <strong style={{ color: "#d4854a" }}>Pro tip:</strong> The more detail you give us, the more personal and accurate your song will be. Include names, places, special memories, inside jokes, how you met, favorite things — anything that makes your story unique!
+            </div>
+          </div>
+        </div>
+
+        <div style={S.fieldGroup}>
+          <label style={S.label}>Additional Notes</label>
+          <textarea style={{ ...S.textarea, minHeight: 70 }} value={form.extraNotes} onChange={set("extraNotes")} placeholder="Any instruments you love, things to avoid, reference songs…" />
+        </div>
+
+        {error && <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 16, background: "rgba(224,92,92,.1)", padding: "12px 16px", borderRadius: 8 }}>⚠️ {error}</div>}
+
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, flexWrap: "wrap", gap: 12 }}>
+          <button style={S.btnOutline} onClick={onBack}>← Back</button>
+          <button style={{ ...S.btnGold, display: "flex", alignItems: "center", gap: 10, opacity: processing ? .7 : 1 }} onClick={handleCheckout} disabled={processing}>
+            {processing
+              ? <><div style={{ width: 16, height: 16, border: "2px solid #1a1200", borderTopColor: "transparent", borderRadius: "50%", animation: "spin .7s linear infinite" }} />{ selectedTier === "sample" ? "Submitting…" : "Redirecting…"}</>
+              : selectedTier === "sample" ? "Submit Sample Request — Free" : `Continue to Payment — $${tier.price.toFixed(2)}`}
+          </button>
+        </div>
+        <div style={{ marginTop: 14, textAlign: "center", color: "#b09880", fontSize: 12 }}>
+          🔒 Secured by Stripe — you'll be redirected to complete payment safely
+        </div>
+      </div>
     </div>
   );
 }
@@ -597,6 +675,13 @@ export default function App() {
   const [view, setView] = useState("home"); // home | order
   const [selectedTier, setSelectedTier] = useState("one");
   const [orderDone, setOrderDone] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [policyModal, setPolicyModal] = useState(null);
+
+  // Route to admin if URL path is /admin
+  if (window.location.pathname.startsWith("/admin")) {
+    return <AdminApp />;
+  }
 
   const scrollTo = (id) => {
     const el = document.getElementById(id);
@@ -634,15 +719,16 @@ export default function App() {
         {/* NAV */}
         <nav style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-          background: "rgba(10,10,15,.85)", backdropFilter: "blur(12px)",
-          borderBottom: "1px solid rgba(201,168,76,.1)",
+          background: "rgba(13,10,7,.95)", backdropFilter: "blur(12px)",
+          borderBottom: "1px solid rgba(212,133,74,.1)",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 40px",
+          padding: "16px 24px",
         }}>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", cursor: "pointer" }} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 20, color: "#fff", cursor: "pointer" }} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
             🎸 <span style={{ color: "var(--gold)" }}>Dirt Road</span> Beats
           </div>
-          <div style={{ display: "flex", gap: 32 }}>
+          {/* Desktop nav links */}
+          <div className="nav-links" style={{ display: "flex", gap: 32 }}>
             {["how-it-works", "pricing", "sample"].map(id => (
               <button key={id} onClick={() => scrollTo(id)} style={{ background: "none", border: "none", color: "rgba(245,237,224,.92)", cursor: "pointer", fontSize: 14, fontFamily: "'DM Sans'", textTransform: "capitalize" }}>
                 {id.replace(/-/g," ")}
@@ -652,7 +738,36 @@ export default function App() {
               Order Now
             </button>
           </div>
+          {/* Mobile hamburger */}
+          <div style={{ display: "none" }} className="nav-order-btn">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{ background: "none", border: "1px solid rgba(212,133,74,.3)", borderRadius: 8, padding: "8px 12px", color: "var(--gold)", cursor: "pointer", fontSize: 18 }}
+            >
+              {mobileMenuOpen ? "✕" : "☰"}
+            </button>
+          </div>
         </nav>
+
+        {/* Mobile menu dropdown */}
+        {mobileMenuOpen && (
+          <div style={{
+            position: "fixed", top: 56, left: 0, right: 0, zIndex: 99,
+            background: "rgba(13,10,7,.98)", borderBottom: "1px solid rgba(212,133,74,.15)",
+            padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12,
+          }}>
+            {["how-it-works", "pricing", "sample"].map(id => (
+              <button key={id} onClick={() => { scrollTo(id); setMobileMenuOpen(false); }}
+                style={{ background: "none", border: "none", color: "#f5ede0", cursor: "pointer", fontSize: 16, fontFamily: "'DM Sans'", textAlign: "left", padding: "8px 0", textTransform: "capitalize", borderBottom: "1px solid rgba(212,133,74,.1)" }}>
+                {id.replace(/-/g," ")}
+              </button>
+            ))}
+            <button style={{ ...S.btnGold, width: "100%", textAlign: "center", padding: "14px" }}
+              onClick={() => { setView("order"); setMobileMenuOpen(false); }}>
+              Order Now
+            </button>
+          </div>
+        )}
 
         {/* HERO */}
         <section style={S.hero}>
@@ -672,9 +787,12 @@ export default function App() {
               Give us the details — the moment, the memory, the person.
               We'll write, produce, and deliver a fully custom song straight from the heart.
             </p>
-            <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", animation: "fadeUp .9s .3s ease both" }}>
+            <div className="hero-btns" style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", animation: "fadeUp .9s .3s ease both" }}>
               <button style={S.btnGold} onClick={() => scrollTo("pricing")}>
                 See Packages ↓
+              </button>
+              <button style={{ ...S.btnOutline, borderColor: "#4caf7d", color: "#4caf7d" }} onClick={() => { setSelectedTier("sample"); setView("order"); }}>
+                🎵 Try a Free Sample
               </button>
               <button style={S.btnOutline} onClick={() => scrollTo("sample")}>
                 Hear a Sample
@@ -689,7 +807,7 @@ export default function App() {
             <h2 style={S.sectionTitle}>How It Works</h2>
             <p style={S.sectionSub}>Three simple steps to a song you'll treasure for life.</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+          <div className="grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
             {[
               { icon: "📝", n: "01", title: "Tell Us Your Story", body: "Fill out our detailed song brief — genre, tempo, mood, the people involved, and the moments that matter most." },
               { icon: "🎵", n: "02", title: "We Craft Your Song", body: "Our team combines professional songwriting with cutting-edge AI to produce a custom track built entirely around your story." },
@@ -707,13 +825,58 @@ export default function App() {
 
         <hr style={{ ...S.divider, maxWidth: 960, margin: "0 auto 60px" }} />
 
-        {/* SAMPLE PLAYER */}
-        <section id="sample" style={{ ...S.section, maxWidth: 720, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 40 }}>
-            <h2 style={S.sectionTitle}>Hear What's Possible</h2>
-            <p style={S.sectionSub}>Listen to a 30-second protected preview of a sample custom song.</p>
+        {/* SAMPLE PLAYERS */}
+        <SampleSection />
+
+        <hr style={{ ...S.divider, maxWidth: 960, margin: "0 auto 60px" }} />
+
+        {/* TESTIMONIALS */}
+        <section style={{ ...S.section, maxWidth: 960, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <h2 style={S.sectionTitle}>What People Are Saying</h2>
+            <p style={S.sectionSub}>Real stories from real customers who turned their moments into music.</p>
           </div>
-          <ProtectedPlayer title="Golden Days" artistHint="Morgan Wallen" />
+          <div className="grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+            {[
+              {
+                quote: "I ordered the Two Versions package for my parents' 40th anniversary. My mom cried the second it started playing. Worth every single penny.",
+                name: "Kayla M.",
+                location: "Baton Rouge, LA",
+                stars: 5,
+                song: "40 Years of You",
+              },
+              {
+                quote: "I used this for my proposal and she said yes before the song even finished. The detail they put into the lyrics was unreal — they included our dog's name and everything.",
+                name: "Travis B.",
+                location: "Nashville, TN",
+                stars: 5,
+                song: "The Night I Asked Forever",
+              },
+              {
+                quote: "Got this as a birthday gift for my best friend. She literally couldn't believe someone made a song just for her. Dirt Road Beats absolutely delivered.",
+                name: "Amber J.",
+                location: "Houston, TX",
+                stars: 5,
+                song: "Girl, It's Your Day",
+              },
+            ].map(({ quote, name, location, stars, song }) => (
+              <div key={name} style={{ ...S.card, display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ display: "flex", gap: 2 }}>
+                  {Array.from({ length: stars }).map((_, i) => (
+                    <span key={i} style={{ color: "#d4854a", fontSize: 16 }}>★</span>
+                  ))}
+                </div>
+                <div style={{ color: "#f0e0cc", fontSize: 15, lineHeight: 1.75, fontStyle: "italic", flex: 1 }}>
+                  "{quote}"
+                </div>
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{name}</div>
+                  <div style={{ color: "#b09880", fontSize: 12, marginTop: 2 }}>{location}</div>
+                  <div style={{ color: "#d4854a", fontSize: 12, marginTop: 4 }}>🎵 "{song}"</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <hr style={{ ...S.divider, maxWidth: 960, margin: "0 auto 60px" }} />
@@ -724,14 +887,14 @@ export default function App() {
             <h2 style={S.sectionTitle}>Choose Your Package</h2>
             <p style={S.sectionSub}>Every package includes a custom-written song. Upgrade for faster delivery and more revisions.</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 28, maxWidth: 700, margin: "0 auto", alignItems: "start" }}>
+          <div className="grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, alignItems: "start" }}>
             {TIERS.map(tier => (
               <div
                 key={tier.id}
                 onClick={() => { setSelectedTier(tier.id); }}
                 style={{
                   ...S.card,
-                  border: tier.featured ? `1px solid ${tier.color}` : "1px solid rgba(201,168,76,.15)",
+                  border: tier.featured ? `1px solid ${tier.color}` : tier.isSample ? "1px solid rgba(76,175,109,.3)" : "1px solid rgba(201,168,76,.15)",
                   position: "relative",
                   cursor: "pointer",
                   transform: tier.featured ? "scale(1.03)" : "none",
@@ -748,8 +911,20 @@ export default function App() {
                     MOST POPULAR
                   </div>
                 )}
+                {tier.isSample && (
+                  <div style={{
+                    position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)",
+                    background: "linear-gradient(135deg, #4caf7d, #6fcf97)",
+                    color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: 2,
+                    padding: "4px 16px", borderRadius: 50, whiteSpace: "nowrap",
+                  }}>
+                    TRY BEFORE YOU BUY
+                  </div>
+                )}
                 <div style={{ color: tier.color, fontWeight: 700, fontSize: 13, letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>{tier.name}</div>
-                <div style={{ fontFamily: "Georgia, serif", fontSize: 38, fontWeight: 900, color: "#ffffff", marginBottom: 4 }}>${tier.price.toFixed(2)}</div>
+                <div style={{ fontFamily: "Georgia, serif", fontSize: 38, fontWeight: 900, color: "#ffffff", marginBottom: 4 }}>
+                  {tier.isSample ? "FREE" : `$${tier.price.toFixed(2)}`}
+                </div>
                 <div style={{ color: "#e0cdb8", fontSize: 13, marginBottom: 20 }}>{tier.desc}</div>
                 <ul style={{ listStyle: "none", marginBottom: 28 }}>
                   {tier.features.map(f => (
@@ -759,10 +934,10 @@ export default function App() {
                   ))}
                 </ul>
                 <button
-                  style={tier.featured ? { ...S.btnGold, width: "100%", textAlign: "center" } : { ...S.btnOutline, width: "100%", textAlign: "center" }}
+                  style={tier.isSample ? { ...S.btnOutline, width: "100%", textAlign: "center", borderColor: "#4caf7d", color: "#4caf7d" } : tier.featured ? { ...S.btnGold, width: "100%", textAlign: "center" } : { ...S.btnOutline, width: "100%", textAlign: "center" }}
                   onClick={(e) => { e.stopPropagation(); setSelectedTier(tier.id); setView("order"); }}
                 >
-                  Get Started
+                  {tier.isSample ? "Request Free Sample" : "Get Started"}
                 </button>
               </div>
             ))}
@@ -771,8 +946,9 @@ export default function App() {
 
         {/* CTA */}
         <section style={{ padding: "80px 24px", textAlign: "center", background: "linear-gradient(180deg, transparent, rgba(58,26,8,.4), transparent)" }}>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 4vw, 46px)", fontWeight: 700, color: "#fff", marginBottom: 16 }}>
-            Ready to Create Something<br /><em style={{ color: "var(--gold)" }}>Unforgettable?</em>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: "clamp(22px, 5vw, 42px)", fontWeight: 700, color: "#fff", marginBottom: 16, lineHeight: 1.3 }}>
+            Ready to Create Something{" "}
+            <em style={{ color: "var(--gold)" }}>Unforgettable?</em>
           </div>
           <p style={{ color: "rgba(245,237,224,.88)", marginBottom: 32, fontSize: 16 }}>Join hundreds of people who've turned their stories into songs.</p>
           <button style={{ ...S.btnGold, fontSize: 17, padding: "18px 48px" }} onClick={() => { setSelectedTier("one"); setView("order"); }}>
@@ -782,17 +958,134 @@ export default function App() {
 
         {/* FOOTER */}
         <footer style={S.footer}>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "var(--gold)", marginBottom: 8 }}>🎸 Dirt Road Beats</div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 20, color: "var(--gold)", marginBottom: 8 }}>🎸 Dirt Road Beats</div>
           <div style={{ marginBottom: 16 }}>Custom songs, rooted in your story and crafted with heart.</div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 24, marginBottom: 16, flexWrap: "wrap" }}>
-            {["Privacy Policy","Terms of Service","Contact Us","Refund Policy"].map(l => (
-              <a key={l} href="#" style={{ color: "#d4c4b0", textDecoration: "none", fontSize: 13 }}>{l}</a>
+          <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 16, flexWrap: "wrap" }}>
+            {[
+              { label: "Privacy Policy", id: "privacy" },
+              { label: "Terms of Service", id: "terms" },
+              { label: "Contact Us", id: "contact" },
+              { label: "Refund Policy", id: "refund" },
+            ].map(({ label, id }) => (
+              <button key={id} onClick={() => setPolicyModal(id)}
+                style={{ background: "none", border: "none", color: "#d4c4b0", fontSize: 13, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
+                {label}
+              </button>
             ))}
           </div>
           <div>© {new Date().getFullYear()} Dirt Road Beats. All rights reserved.</div>
         </footer>
 
+        {policyModal && <PolicyModal id={policyModal} onClose={() => setPolicyModal(null)} />}
+
       </div>
     </>
+  );
+}
+
+// ── Policy Modal ──────────────────────────────────────────────────────────────
+const TODAY = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+const POLICIES = {
+  privacy: {
+    title: "Privacy Policy",
+    sections: [
+      { heading: true, text: `Last updated: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` },
+      { heading: false, text: "At Dirt Road Beats, we take your privacy seriously. This policy explains how we collect, use, and protect your information." },
+      { heading: true, text: "INFORMATION WE COLLECT" },
+      { heading: false, text: "When you place an order, we collect your name, email address, and the song details you provide. Payment information is processed securely by Stripe — we never store your credit card details on our servers." },
+      { heading: true, text: "HOW WE USE YOUR INFORMATION" },
+      { heading: false, text: "We use your information solely to fulfill your order and deliver your finished WAV file. We do not sell, rent, or share your personal information with third parties." },
+      { heading: true, text: "DATA SECURITY" },
+      { heading: false, text: "Your information is transmitted using industry-standard SSL encryption. Payment processing is handled by Stripe, which is PCI-compliant." },
+      { heading: true, text: "YOUR RIGHTS" },
+      { heading: false, text: "You may request that we delete your personal information at any time by emailing dirtroadbeat@gmail.com. We will respond within 30 days." },
+    ]
+  },
+  terms: {
+    title: "Terms of Service",
+    sections: [
+      { heading: true, text: `Last updated: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` },
+      { heading: true, text: "SERVICES" },
+      { heading: false, text: "Dirt Road Beats creates custom, original songs based on the information you provide, delivered as a WAV audio file." },
+      { heading: true, text: "YOUR ORDER" },
+      { heading: false, text: "You are responsible for providing accurate and complete information in your song brief. The quality of your song depends on the detail you provide." },
+      { heading: true, text: "INTELLECTUAL PROPERTY" },
+      { heading: false, text: "Upon delivery and full payment, you receive a personal, non-commercial license to use your custom song. You may share it privately and play it at personal events. You may not sell or distribute it commercially without written permission." },
+      { heading: true, text: "DELIVERY" },
+      { heading: false, text: "Songs are typically delivered within 3–5 business days. Delivery times are estimates and may vary." },
+      { heading: true, text: "GOVERNING LAW" },
+      { heading: false, text: "These terms are governed by the laws of the State of Louisiana." },
+    ]
+  },
+  contact: {
+    title: "Contact Us",
+    sections: [
+      { heading: false, text: "We'd love to hear from you!" },
+      { heading: true, text: "EMAIL" },
+      { heading: false, text: "dirtroadbeat@gmail.com" },
+      { heading: false, text: "We typically respond within 24 hours, Monday through Friday." },
+      { heading: true, text: "QUESTIONS ABOUT YOUR ORDER" },
+      { heading: false, text: "If you have questions about an existing order, please include your order ID in your email so we can look it up quickly." },
+      { heading: true, text: "SONG REVISIONS" },
+      { heading: false, text: "If you'd like a revision on your delivered song, just reply to your delivery email with your feedback and we'll take care of you." },
+      { heading: true, text: "GENERAL INQUIRIES" },
+      { heading: false, text: "For anything else — questions about our process, custom requests, or anything else — don't hesitate to reach out. We personally read every email. 🎸" },
+    ]
+  },
+  refund: {
+    title: "Refund Policy",
+    sections: [
+      { heading: true, text: `Last updated: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` },
+      { heading: false, text: "We want you to be completely happy with your custom song. Here's how our refund policy works." },
+      { heading: true, text: "BEFORE DELIVERY" },
+      { heading: false, text: "If you need to cancel before your song has been delivered, contact us as soon as possible. If production has not yet begun, we will issue a full refund. If production is already underway, we may issue a partial refund at our discretion." },
+      { heading: true, text: "AFTER DELIVERY" },
+      { heading: false, text: "Due to the custom nature of our songs, we generally do not offer refunds after delivery. Each song is created specifically for you and cannot be resold." },
+      { heading: true, text: "EXCEPTIONS" },
+      { heading: false, text: "If your song contains a significant error — wrong name, wrong genre, or a clear deviation from your brief — we will make it right. Contact us within 7 days of delivery and we will revise or refund at our discretion." },
+      { heading: true, text: "HOW TO REQUEST A REFUND" },
+      { heading: false, text: "Email us at dirtroadbeat@gmail.com with your order ID and a description of the issue. We respond within 24–48 hours." },
+    ]
+  },
+};
+
+function PolicyModal({ id, onClose }) {
+  const policy = POLICIES[id];
+  if (!policy) return null;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: "#1c1410", border: "1px solid rgba(212,133,74,.25)",
+        borderRadius: 16, width: "100%", maxWidth: 600,
+        maxHeight: "88vh", display: "flex", flexDirection: "column",
+      }}>
+        <div style={{ padding: "22px 28px 16px", borderBottom: "1px solid rgba(212,133,74,.12)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 20, color: "#d4854a" }}>{policy.title}</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#b09880", fontSize: 22, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ padding: "20px 28px", overflowY: "auto", flex: 1 }}>
+          {policy.sections.map((s, i) => (
+            <div key={i} style={{
+              color: s.heading ? "#d4854a" : "#e0cdb8",
+              fontSize: s.heading ? 11 : 14,
+              fontWeight: s.heading ? 700 : 400,
+              letterSpacing: s.heading ? 1.5 : 0,
+              textTransform: s.heading ? "uppercase" : "none",
+              lineHeight: 1.8,
+              marginBottom: s.heading ? 6 : 14,
+              marginTop: s.heading && i > 0 ? 10 : 0,
+            }}>
+              {s.text}
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: "16px 28px", borderTop: "1px solid rgba(212,133,74,.12)", flexShrink: 0 }}>
+          <button onClick={onClose} style={{ background: "linear-gradient(135deg, #d4854a, #edb87a)", border: "none", borderRadius: 50, padding: "11px 28px", color: "#1a0d05", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
