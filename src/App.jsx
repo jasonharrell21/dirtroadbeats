@@ -670,7 +670,101 @@ function OrderForm({ selectedTier, onBack, onSuccess }) {
   );
 }
 
-// ── Main App ──────────────────────────────────────────────────────────────────
+// ── Protected Sample Player Page ─────────────────────────────────────────────
+function PlayerPage() {
+  const params = new URLSearchParams(window.location.search);
+  const fileUrl = params.get("file");
+  const songTitle = params.get("title") || "Your Custom Song";
+  const genre = params.get("genre") || "Custom Country";
+  const ONE_URL = "https://buy.stripe.com/00weV7f755pg2YygiegMw00";
+  const TWO_URL = "https://buy.stripe.com/9B600d3oncRI56Gc1YgMw01";
+  const email = params.get("email") || "";
+  const emailParam = email ? `?prefilled_email=${encodeURIComponent(email)}` : "";
+  const MAX = 30;
+
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [ended, setEnded] = useState(false);
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    const audio = new Audio(fileUrl);
+    audio.crossOrigin = "anonymous";
+    audioRef.current = audio;
+    audio.addEventListener("timeupdate", () => {
+      if (audio.currentTime >= MAX) {
+        audio.pause(); audio.currentTime = MAX;
+        setCurrentTime(MAX); setPlaying(false); setEnded(true);
+      } else { setCurrentTime(audio.currentTime); }
+    });
+    audio.addEventListener("ended", () => { setPlaying(false); setEnded(true); });
+    return () => { audio.pause(); };
+  }, [fileUrl]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || ended) return;
+    if (playing) { audio.pause(); setPlaying(false); }
+    else { audio.play().catch(() => {}); setPlaying(true); }
+  };
+
+  const progress = Math.min((currentTime / MAX) * 100, 100);
+  const fmt = (s) => "0:" + String(Math.floor(Math.min(s, MAX))).padStart(2, "0");
+
+  if (!fileUrl) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#0d0a07", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ color: "#e05c5c", fontSize: 16, textAlign: "center" }}>Invalid sample link. Please check your email for the correct link.</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <FontLink />
+      <div style={{ minHeight: "100vh", background: "#0d0a07", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ background: "#1c1410", border: "1px solid rgba(212,133,74,.2)", borderRadius: 20, padding: "40px 32px", maxWidth: 440, width: "100%", textAlign: "center" }}>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 22, color: "#d4854a", marginBottom: 4 }}>Dirt Road Beats</div>
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "rgba(245,237,224,.35)", marginBottom: 32 }}>Your Custom Song Sample</div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 22, color: "#f5ede0", marginBottom: 6 }}>{songTitle}</div>
+          <div style={{ fontSize: 13, color: "#7a6050", marginBottom: 28 }}>{genre} · 30-Second Preview</div>
+          <div style={{ background: "#261d15", borderRadius: 16, padding: 24, marginBottom: 24, border: "1px solid rgba(212,133,74,.15)" }}>
+            <button onClick={togglePlay} disabled={ended}
+              style={{ width: 64, height: 64, borderRadius: "50%", background: ended ? "rgba(212,133,74,.2)" : "linear-gradient(135deg,#d4854a,#edb87a)", border: "none", fontSize: 22, cursor: ended ? "default" : "pointer", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", color: ended ? "#5a4030" : "#1a0d05", opacity: ended ? 0.5 : 1 }}>
+              {playing ? "⏸" : "▶"}
+            </button>
+            <div style={{ background: "rgba(255,255,255,.08)", borderRadius: 4, height: 6, marginBottom: 10, overflow: "hidden" }}>
+              <div style={{ width: progress + "%", height: "100%", background: "linear-gradient(90deg,#d4854a,#edb87a)", borderRadius: 4, transition: "width .3s linear" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#7a6050" }}>
+              <span>{fmt(currentTime)}</span><span>0:30</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#5a4030", marginTop: 10 }}>Protected preview — stops at 30 seconds</div>
+          </div>
+          {ended && (
+            <div style={{ background: "rgba(212,133,74,.08)", border: "1px solid rgba(212,133,74,.2)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 14, color: "#d4854a" }}>
+              Preview ended — ready to hear the full thing?
+            </div>
+          )}
+          <p style={{ color: "#e0cdb8", fontSize: 15, marginBottom: 6 }}>Love what you hear?</p>
+          <p style={{ color: "#7a6050", fontSize: 12, marginBottom: 16 }}>Choose your version below.</p>
+          <a href={ONE_URL + emailParam}
+            style={{ display: "block", background: "linear-gradient(135deg,#d4854a,#edb87a)", color: "#1a0d05", textDecoration: "none", fontWeight: 700, fontSize: 15, padding: "14px 32px", borderRadius: 50, marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>
+            🎸 One Version — $179.99
+          </a>
+          <a href={TWO_URL + emailParam}
+            style={{ display: "block", background: "linear-gradient(135deg,#c9a84c,#f0d080)", color: "#1a1200", textDecoration: "none", fontWeight: 700, fontSize: 15, padding: "14px 32px", borderRadius: 50, marginBottom: 6, fontFamily: "'DM Sans', sans-serif" }}>
+            🎶 Two Versions — $199.99
+          </a>
+          <p style={{ color: "#3a2a1a", fontSize: 11, marginBottom: 16 }}>Two Versions = two unique takes. Pick your favorite or keep both.</p>
+          <p style={{ color: "#5a4030", fontSize: 13 }}>Questions? Reply to your sample email.</p>
+          <div style={{ marginTop: 28, fontSize: 11, color: "#2a1a0a" }}>2025 Dirt Road Beats</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState("home"); // home | order
   const [selectedTier, setSelectedTier] = useState("one");
@@ -681,6 +775,11 @@ export default function App() {
   // Route to admin if URL path is /admin
   if (window.location.pathname.startsWith("/admin")) {
     return <AdminApp />;
+  }
+
+  // Route to protected sample player
+  if (window.location.pathname.startsWith("/player")) {
+    return <PlayerPage />;
   }
 
   const scrollTo = (id) => {
@@ -928,8 +1027,8 @@ export default function App() {
                 <div style={{ color: "#e0cdb8", fontSize: 13, marginBottom: 20 }}>{tier.desc}</div>
                 <ul style={{ listStyle: "none", marginBottom: 28 }}>
                   {tier.features.map(f => (
-                    <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, color: "#f5ede0", fontSize: 14, marginBottom: 10 }}>
-                      <span style={{ color: tier.color, fontSize: 16 }}>✓</span>{f}
+                    <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 10, color: "#f5ede0", fontSize: 14, marginBottom: 10, textAlign: "left" }}>
+                      <span style={{ color: tier.color, fontSize: 16, flexShrink: 0, marginTop: 1 }}>✓</span>{f}
                     </li>
                   ))}
                 </ul>

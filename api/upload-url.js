@@ -1,7 +1,15 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { fileName, contentType } = req.body;
+  let fileName, contentType;
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    fileName = body.fileName;
+    contentType = body.contentType;
+  } catch (e) {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
+
   if (!fileName || !contentType) {
     return res.status(400).json({ error: "Missing fileName or contentType" });
   }
@@ -28,5 +36,7 @@ export default async function handler(req, res) {
   }
 
   const data = await response.json();
-  return res.status(200).json({ signedUrl: data.signedURL, token: data.token });
+  const token = data.token;
+  const signedUrl = `${SUPABASE_URL}/storage/v1/object/upload/sign/Songs/${fileName}?token=${token}`;
+  return res.status(200).json({ signedUrl });
 }
