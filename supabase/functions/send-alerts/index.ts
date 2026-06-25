@@ -1,9 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import webpush from "npm:web-push";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+webpush.setVapidDetails(
+  Deno.env.get("VAPID_EMAIL")!,
+  Deno.env.get("VAPID_PUBLIC_KEY")!,
+  Deno.env.get("VAPID_PRIVATE_KEY")!
 );
 
 Deno.serve(async (_req) => {
@@ -12,7 +19,7 @@ Deno.serve(async (_req) => {
 
   const { data: items, error } = await supabase
     .from("items")
-    .select("*, profiles!inner(email, subscription_status)")
+    .select("*, profiles!inner(id, email, subscription_status, notify_email, notify_push, push_endpoint, push_p256dh, push_auth)")
     .eq("alerted", false)
     .in("profiles.subscription_status", ["trialing", "active"]);
 
@@ -31,8 +38,8 @@ Deno.serve(async (_req) => {
   const gmailUser = Deno.env.get("GMAIL_USER")!;
   const gmailPass = Deno.env.get("GMAIL_APP_PASSWORD")!;
 
-  const client = new SmtpClient();
-  await client.connectTLS({ hostname: "smtp.gmail.com", port: 465, username: gmailUser, password: gmailPass });
+  const smtpClient = new SmtpClient();
+  let smtpConnected = false;
 
   let sent = 0;
   const errors: string[] = [];
@@ -40,28 +47,71 @@ Deno.serve(async (_req) => {
   for (const item of toAlert) {
     const expDate = new Date(item.exp_date + "T00:00:00");
     const daysLeft = Math.round((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    const email = item.profiles.email;
+    const profile = item.profiles;
 
-    const subject = `Your ${item.name} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
-    const html = buildEmail(item.name, item.exp_date, daysLeft);
+    // Send push notification
+    if (profile.notify_push && profile.push_endpoint) {
+      const pushSubscription = {
+        endpoint: profile.push_endpoint,
+        keys: {
+          p256dh: profile.push_p256dh,
+          auth: profile.push_auth,
+        },
+      };
 
-    try {
-      await client.send({
-        from: `TrakXP Alerts <${gmailUser}>`,
-        to: email,
-        subject,
-        content: html,
-        html,
-      });
-
-      await supabase.from("items").update({ alerted: true }).eq("id", item.id);
-      sent++;
-    } catch (e) {
-      errors.push(`${item.id}: ${e}`);
+      try {
+        await webpush.sendNotification(
+          pushSubscription,
+          JSON.stringify({
+            title: `${item.name} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+            body: `Expiration date: ${expDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+            url: "/dashboard",
+          })
+        );
+      } catch (e: unknown) {
+        const status = (e as { statusCode?: number }).statusCode;
+        if (status === 410) {
+          // Subscription expired — clear it so future alerts fall back to email
+          await supabase.from("profiles").update({
+            push_endpoint: null,
+            push_p256dh: null,
+            push_auth: null,
+          }).eq("id", profile.id);
+        } else {
+          errors.push(`push:${item.id}: ${e}`);
+        }
+      }
     }
+
+    // Send email notification
+    if (profile.notify_email !== false) {
+      try {
+        if (!smtpConnected) {
+          await smtpClient.connectTLS({ hostname: "smtp.gmail.com", port: 465, username: gmailUser, password: gmailPass });
+          smtpConnected = true;
+        }
+
+        const subject = `Your ${item.name} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
+        const html = buildEmail(item.name, item.exp_date, daysLeft);
+
+        await smtpClient.send({
+          from: `TrakXP Alerts <${gmailUser}>`,
+          to: profile.email,
+          subject,
+          content: html,
+          html,
+        });
+      } catch (e) {
+        errors.push(`email:${item.id}: ${e}`);
+      }
+    }
+
+    // Mark alerted regardless of which channels fired
+    await supabase.from("items").update({ alerted: true }).eq("id", item.id);
+    sent++;
   }
 
-  await client.close();
+  if (smtpConnected) await smtpClient.close();
 
   return new Response(JSON.stringify({ checked: items?.length, sent, errors }), {
     headers: { "Content-Type": "application/json" },

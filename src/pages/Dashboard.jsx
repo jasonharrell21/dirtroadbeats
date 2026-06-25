@@ -7,6 +7,15 @@ import FilterTabs from "../components/FilterTabs";
 import TrialBanner from "../components/TrialBanner";
 import PaywallModal from "../components/PaywallModal";
 
+const PUSH_PROMPT_KEY = "trakxp_push_prompt_dismissed";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
 function daysUntil(dateStr) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -22,12 +31,74 @@ function getItemStatus(item) {
   return "good";
 }
 
+function PushPrompt({ onEnable, onDismiss }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleEnable = async () => {
+    setLoading(true);
+    await onEnable();
+    setLoading(false);
+  };
+
+  return (
+    <div style={{
+      background: "#fff7ed",
+      border: "1px solid #fed7aa",
+      borderRadius: 12,
+      padding: "16px",
+      marginBottom: 16,
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 12,
+    }}>
+      <span style={{ fontSize: 24, flexShrink: 0, lineHeight: 1.2 }}>🔔</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#92400e", marginBottom: 4 }}>
+          Get alerts on your phone
+        </div>
+        <div style={{ fontSize: 13, color: "#b45309", marginBottom: 12, lineHeight: 1.5 }}>
+          Turn on push notifications so you never miss an expiration alert.
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={handleEnable}
+            disabled={loading}
+            style={{
+              background: "#f97316",
+              color: "#fff",
+              border: "none",
+              borderRadius: 20,
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: loading ? "default" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {loading && <div style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .7s linear infinite" }} />}
+            {loading ? "Enabling…" : "Enable notifications"}
+          </button>
+          <button
+            onClick={onDismiss}
+            style={{ background: "none", border: "none", fontSize: 13, color: "#92400e", cursor: "pointer", padding: "8px 4px" }}
+          >
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const nav = useNavigate();
   const [profile, setProfile] = useState(null);
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -42,9 +113,54 @@ export default function Dashboard() {
       setProfile(prof);
       setItems(its || []);
       setLoading(false);
+
+      // Show push prompt if: supported, not dismissed, no subscription yet, permission not already granted
+      const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+      const dismissed = localStorage.getItem(PUSH_PROMPT_KEY);
+      const alreadyGranted = "Notification" in window && Notification.permission === "granted";
+      if (pushSupported && !dismissed && !prof?.push_endpoint && !alreadyGranted) {
+        setShowPushPrompt(true);
+      }
     }
     load();
   }, []);
+
+  const handlePushEnable = async () => {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setShowPushPrompt(false);
+        localStorage.setItem(PUSH_PROMPT_KEY, "1");
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch("/api/save-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ subscription: subscription.toJSON() }),
+      });
+
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("profiles").update({ notify_push: true }).eq("id", user.id);
+    } catch (e) {
+      console.error("Push enable error:", e);
+    }
+    setShowPushPrompt(false);
+    localStorage.setItem(PUSH_PROMPT_KEY, "1");
+  };
+
+  const handlePushDismiss = () => {
+    setShowPushPrompt(false);
+    localStorage.setItem(PUSH_PROMPT_KEY, "1");
+  };
 
   const isPaywalled = () => {
     if (!profile) return false;
@@ -87,6 +203,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       {paywalled && <PaywallModal />}
 
       {/* Header */}
@@ -106,6 +223,7 @@ export default function Dashboard() {
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 16px 100px" }}>
         {trialLeft !== null && trialLeft >= 0 && <TrialBanner daysLeft={trialLeft} />}
+        {showPushPrompt && <PushPrompt onEnable={handlePushEnable} onDismiss={handlePushDismiss} />}
 
         <SummaryRow expired={expired} comingUp={comingUp} total={items.length} />
         <FilterTabs active={filter} onChange={setFilter} />
